@@ -183,6 +183,166 @@ fn issue_1885() {
         .collect::<Vec<_>>();
 }
 
+fn select_macros() {
+    // Multiple branches without keywords
+    select! {
+        val = future1 => handle(val),
+        _ = future2 => other(),
+    }
+
+    // Basic select! with keyword arms
+    select! {
+        a = foo() => bar(),
+        complete => baz(),
+        default => quux(),
+    }
+
+    // Keywords as normal identifier patterns (not keyword arms)
+    select! {
+        complete = foo() => bar(),
+        default = other() => baz(),
+    }
+
+    // select_biased! works the same as select!
+    select_biased! {
+        a = foo() => bar(),
+        default => fallback(),
+    }
+
+    // Empty block body collapses to {}
+    select! {
+        val = future => {},
+    }
+
+    // Multi-statement block stays expanded
+    select! {
+        val = future => {
+            let x = 1;
+            process(x)
+        },
+    }
+
+    // Literal bodies stay on same line
+    select! {
+        _ = timeout => false,
+        _ = success => true,
+    }
+
+    // Long lines wrap appropriately
+    select! {
+        result = some_very_long_future_name => some_very_long_function_name(result),
+    }
+
+    // select_loop! with all keyword positions and interleaved branches
+    select_loop! {
+        ctx,
+        on_start => setup(),
+        val = stream => process(val),
+        on_stopped => cleanup(),
+        on_end => finalize(),
+    }
+
+    // select_loop! keywords as normal patterns (on_start used as pattern name)
+    select_loop! {
+        ctx,
+        on_stopped => stopped(),
+        on_start = other_stream() => handle(on_start),
+    }
+
+    // select_loop! with subset of keywords (only on_stopped required)
+    select_loop! {
+        context,
+        on_stopped => cleanup(),
+        msg = receiver => handle(msg),
+    }
+
+    // Nested select inside select
+    select! {
+        outer = outer_future => select! {
+            inner = inner_future => process(inner),
+            default => fallback(),
+        },
+    }
+
+    // Tuple patterns
+    select! {
+        (a, b) = tuple_future => handle(a, b),
+    }
+
+    // Struct patterns
+    select! {
+        MyStruct { field: value } = struct_future => handle(value),
+    }
+
+    // Long pattern that needs wrapping
+    select! {
+        VeryLongPatternName {
+            field_one: value_one,
+            field_two: value_two,
+        } = some_future => handle(value_one, value_two),
+    }
+
+    // Qualified paths (futures::select!)
+    futures::select! {
+        a = foo() => bar(),
+        default => fallback(),
+    }
+
+    // Non-block multiline body gets wrapped in { } (like match arms with match_arm_blocks=true)
+    select! {
+        msg = rx.next() => {
+            if let Some(v) = msg {
+                results.push(v);
+            }
+        },
+    }
+
+    // Let-else patterns with diverging expressions (else break/continue/return)
+    select_loop! {
+        ctx,
+        on_stopped => cleanup(),
+        Some(msg) = rx.next() else break => handle(msg),
+        Ok(val) = result.next() else continue => process(val),
+    }
+
+    // Let-else with multiline block
+    select_loop! {
+        ctx,
+        on_stopped => cleanup(),
+        Some(msg) = rx.next() else {
+            log_error();
+            return;
+        } => handle(msg),
+    }
+
+    // Comments between arms are preserved
+    select! {
+        // Handle first case
+        val = future1 => handle(val),
+        // Handle second case
+        _ = future2 => other(),
+        // Default fallback
+        default => fallback(),
+    }
+
+    // select_loop! with comments between items
+    select_loop! {
+        ctx,
+        // Initialize state
+        on_start => setup(),
+        // Handle incoming messages
+        msg = receiver => process(msg),
+        // Clean up when stopped
+        on_stopped => cleanup(),
+    }
+
+    // Invalid syntax: pattern => body without = falls back to default formatting
+    // (only keyword arms like `default =>` can omit `=`)
+    select! {
+        foo   =>   bar(),
+    }
+}
+
 fn issue_1917() {
     mod x {
         quickcheck! {

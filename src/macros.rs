@@ -22,12 +22,19 @@ use tracing::debug;
 use crate::comment::{
     CharClasses, FindUncommented, FullCodeCharKind, LineClasses, contains_comment,
 };
-use crate::config::StyleEdition;
 use crate::config::lists::*;
-use crate::expr::{RhsAssignKind, rewrite_array, rewrite_assign_rhs};
+use crate::config::{ControlBraceStyle, StyleEdition};
+use crate::expr::{
+    ExprType, RhsAssignKind, RhsTactics, format_expr, prefer_next_line, rewrite_array,
+    rewrite_assign_rhs,
+};
 use crate::lists::{ListFormatting, itemize_list, write_list};
+use crate::matches::{flatten_arm_body_for_select, nop_block_collapse};
 use crate::overflow;
 use crate::parse::macros::lazy_static::parse_lazy_static;
+use crate::parse::macros::select::{
+    SelectBranch, SelectItem, SelectLoopItem, parse_select, parse_select_loop,
+};
 use crate::parse::macros::{ParsedMacroArgs, parse_expr, parse_macro_args};
 use crate::rewrite::{
     MacroErrorKind, Rewrite, RewriteContext, RewriteError, RewriteErrorExt, RewriteResult,
@@ -36,8 +43,9 @@ use crate::shape::{Indent, Shape};
 use crate::source_map::SpanUtils;
 use crate::spanned::Spanned;
 use crate::utils::{
-    NodeIdExt, filtered_str_fits, format_visibility, indent_next_line, is_empty_line, mk_sp,
-    remove_trailing_white_spaces, rewrite_ident, trim_left_preserve_layout,
+    NodeIdExt, extra_offset, filtered_str_fits, first_line_width, format_visibility,
+    indent_next_line, is_empty_line, mk_sp, remove_trailing_white_spaces, rewrite_ident,
+    trim_left_preserve_layout,
 };
 use crate::visitor::FmtVisitor;
 
@@ -239,6 +247,43 @@ fn rewrite_macro_inner(
                 RewriteError::MacroFailure { kind, span: _ }
                     if kind == MacroErrorKind::ParseFailure => {}
                 // If formatting fails even though parsing succeeds, return the err early
+                _ => return Err(err),
+            },
+        }
+    }
+
+    // Format select!, select_biased! macros from futures crate
+    if matches!(
+        macro_name.as_str(),
+        "select!"
+            | "select_biased!"
+            | "futures::select!"
+            | "futures::select_biased!"
+            | "futures_util::select!"
+            | "futures_util::select_biased!"
+    ) && original_style == Delimiter::Brace
+    {
+        match format_select_macro(context, shape, ts.clone(), mac.span(), &macro_name) {
+            Ok(rw) => return Ok(rw),
+            Err(err) => match err {
+                RewriteError::MacroFailure { kind, span: _ }
+                    if kind == MacroErrorKind::ParseFailure => {}
+                _ => return Err(err),
+            },
+        }
+    }
+
+    // Format select_loop! macro (has different syntax with context and special blocks)
+    if matches!(
+        macro_name.as_str(),
+        "select_loop!" | "commonware_macros::select_loop!"
+    ) && original_style == Delimiter::Brace
+    {
+        match format_select_loop_macro(context, shape, ts.clone(), mac.span(), &macro_name) {
+            Ok(rw) => return Ok(rw),
+            Err(err) => match err {
+                RewriteError::MacroFailure { kind, span: _ }
+                    if kind == MacroErrorKind::ParseFailure => {}
                 _ => return Err(err),
             },
         }
@@ -1460,6 +1505,292 @@ fn format_lazy_static(
         }
     }
 
+    result.push_str(&shape.indent.to_string_with_newline(context.config));
+    result.push('}');
+
+    Ok(result)
+}
+
+/// Format `prefix => body,` with proper line wrapping.
+/// Mirrors match arm formatting logic from src/matches.rs.
+fn format_arm(
+    context: &RewriteContext<'_>,
+    prefix: &str,
+    body: &ast::Expr,
+    shape: Shape,
+) -> RewriteResult {
+    // Use extra_offset to avoid double-counting indentation for multiline prefixes
+    let body_shape = shape
+        .offset_left_opt(extra_offset(prefix, shape) + 4) // 4 = " => "
+        .and_then(|s| s.sub_width_opt(1)); // 1 = ","
+
+    // extend=false means prefer next line (e.g., force_multiline_blocks was set)
+    let (extend, flattened) = flatten_arm_body_for_select(context, body, body_shape);
+    let is_block = matches!(flattened.kind, ast::ExprKind::Block(..));
+
+    // Honor control_brace_style for blocks (like match arms do)
+    let force_next_line_brace =
+        is_block && context.config.control_brace_style() == ControlBraceStyle::AlwaysNextLine;
+
+    // For blocks with AlwaysNextLine, format at current indent level (like match arms)
+    if force_next_line_brace {
+        let block_sep = shape.indent.to_string_with_newline(context.config);
+        let body_str = format_expr(flattened, ExprType::Statement, context, shape)?;
+        return Ok(format!("{} =>{}{},", prefix, block_sep, body_str));
+    }
+
+    // Helper closures for combining prefix with body
+    let combine_same_line = |body_str: &str| format!("{} => {},", prefix, body_str);
+    let combine_next_line_block = |body_str: &str| {
+        // For blocks, just put on next line
+        let next_line_indent = shape
+            .block_indent(context.config.tab_spaces())
+            .indent
+            .to_string_with_newline(context.config);
+        format!("{} =>{}{},", prefix, next_line_indent, body_str)
+    };
+    let combine_next_line_nonblock = |body_str: &str| {
+        // For non-blocks, wrap in { } if match_arm_blocks is true (like match arms do)
+        if context.config.match_arm_blocks() {
+            let indent_str = shape.indent.to_string_with_newline(context.config);
+            let nested_indent_str = shape
+                .block_indent(context.config.tab_spaces())
+                .indent
+                .to_string_with_newline(context.config);
+            let block_trailing_comma = if context.config.match_block_trailing_comma() {
+                ","
+            } else {
+                ""
+            };
+            format!(
+                "{} => {{{}{}{}}}{},",
+                prefix, nested_indent_str, body_str, indent_str, block_trailing_comma
+            )
+        } else {
+            let next_line_indent = shape
+                .block_indent(context.config.tab_spaces())
+                .indent
+                .to_string_with_newline(context.config);
+            format!("{} =>{}{},", prefix, next_line_indent, body_str)
+        }
+    };
+
+    // Try same-line formatting (mirroring matches.rs lines 552-557)
+    // Wrap with nop_block_collapse to collapse empty blocks to {}
+    let orig_body = body_shape
+        .map(|bs| {
+            nop_block_collapse(
+                format_expr(flattened, ExprType::Statement, context, bs),
+                bs.width,
+            )
+        })
+        .unwrap_or(Err(RewriteError::Unknown));
+
+    // Early return for blocks or simple expressions that fit on one line
+    if let Ok(ref body_str) = orig_body {
+        if let Some(bs) = body_shape {
+            if is_block || (!body_str.contains('\n') && first_line_width(body_str) <= bs.width) {
+                return Ok(combine_same_line(body_str));
+            }
+        }
+    }
+
+    // Try next-line formatting
+    let next_line_shape = shape.block_indent(context.config.tab_spaces());
+    let next_line_body = nop_block_collapse(
+        format_expr(flattened, ExprType::Statement, context, next_line_shape),
+        next_line_shape.width,
+    );
+
+    // Helper to choose the right next-line combiner based on whether body is a block
+    let combine_next_line = |body_str: &str| {
+        if is_block {
+            combine_next_line_block(body_str)
+        } else {
+            combine_next_line_nonblock(body_str)
+        }
+    };
+
+    // Choose between same-line and next-line using prefer_next_line heuristic
+    // (mirroring matches.rs lines 572-589)
+    match (&orig_body, &next_line_body) {
+        (Ok(orig_str), Ok(next_line_str))
+            if prefer_next_line(orig_str, next_line_str, RhsTactics::Default) =>
+        {
+            Ok(combine_next_line(next_line_str))
+        }
+        (Ok(orig_str), _)
+            if extend && body_shape.is_some_and(|bs| first_line_width(orig_str) <= bs.width) =>
+        {
+            Ok(combine_same_line(orig_str))
+        }
+        (Ok(orig_str), Ok(next_line_str)) if orig_str.contains('\n') => {
+            Ok(combine_next_line(next_line_str))
+        }
+        (Err(_), Ok(next_line_str)) => Ok(combine_next_line(next_line_str)),
+        (Err(_), Err(e)) => Err(e.clone()),
+        (Ok(orig_str), _) => Ok(combine_same_line(orig_str)),
+    }
+}
+
+/// Format a select branch: `pattern = future_expr [else diverge] => body,`
+fn format_select_branch(
+    context: &RewriteContext<'_>,
+    branch: &SelectBranch,
+    shape: Shape,
+) -> RewriteResult {
+    let pat_str = branch.pattern.rewrite_result(context, shape)?;
+    let expr_shape = shape
+        .offset_left_opt(extra_offset(&pat_str, shape) + 3) // 3 = " = "
+        .unwrap_or(shape);
+    let expr_str = branch.future_expr.rewrite_result(context, expr_shape)?;
+
+    let prefix = if let Some(ref else_diverge) = branch.else_diverge {
+        // Format: `pattern = future_expr else diverge`
+        // 6 = " else "
+        let else_shape = shape
+            .offset_left_opt(extra_offset(&pat_str, shape) + 3 + extra_offset(&expr_str, shape) + 6)
+            .unwrap_or(shape);
+        let else_str = else_diverge.rewrite_result(context, else_shape)?;
+        format!("{} = {} else {}", pat_str, expr_str, else_str)
+    } else {
+        format!("{} = {}", pat_str, expr_str)
+    };
+    format_arm(context, &prefix, &branch.body, shape)
+}
+
+/// Format `select!` and `select_biased!` macros.
+///
+/// Supports `pattern = future [else diverge] => body`, `default => body`, and `complete => body`.
+/// Falls back to default formatting for unsupported syntax (e.g., tokio guards).
+fn format_select_macro(
+    context: &RewriteContext<'_>,
+    shape: Shape,
+    ts: TokenStream,
+    span: Span,
+    macro_name: &str,
+) -> RewriteResult {
+    let items = parse_select(context, ts).macro_error(MacroErrorKind::ParseFailure, span)?;
+
+    if items.is_empty() {
+        return Ok(format!("{} {{}}", macro_name));
+    }
+
+    let nested_shape = shape
+        .block_indent(context.config.tab_spaces())
+        .with_max_width(context.config);
+
+    // Use itemize_list to preserve comments between items
+    let open_brace_pos = context.snippet_provider.span_after(span, "{");
+    let item_list = itemize_list(
+        context.snippet_provider,
+        items.iter(),
+        "}",
+        ",",
+        |item| item.span().lo(),
+        |item| item.span().hi(),
+        |item| match item {
+            SelectItem::Branch(branch) => format_select_branch(context, branch, nested_shape),
+            SelectItem::Keyword { body, keyword, .. } => {
+                format_arm(context, keyword, body, nested_shape)
+            }
+        },
+        open_brace_pos,
+        span.hi(),
+        false,
+    )
+    .collect::<Vec<_>>();
+
+    let fmt = ListFormatting::new(nested_shape, context.config)
+        .separator("")
+        .preserve_newline(true);
+
+    let items_str = write_list(&item_list, &fmt)?;
+
+    let mut result = String::with_capacity(256);
+    result.push_str(macro_name);
+    result.push_str(" {");
+    result.push_str(&nested_shape.indent.to_string_with_newline(context.config));
+    result.push_str(&items_str);
+    result.push_str(&shape.indent.to_string_with_newline(context.config));
+    result.push('}');
+
+    Ok(result)
+}
+
+/// Format `select_loop!` macro.
+///
+/// Items are output in the order they appear in source, preserving the user's layout.
+fn format_select_loop_macro(
+    context: &RewriteContext<'_>,
+    shape: Shape,
+    ts: TokenStream,
+    span: Span,
+    macro_name: &str,
+) -> RewriteResult {
+    let select_loop =
+        parse_select_loop(context, ts).macro_error(MacroErrorKind::ParseFailure, span)?;
+
+    let nested_shape = shape
+        .block_indent(context.config.tab_spaces())
+        .with_max_width(context.config);
+
+    let mut result = String::with_capacity(512);
+    result.push_str(macro_name);
+    result.push_str(" {");
+
+    // Format context expression
+    result.push_str(&nested_shape.indent.to_string_with_newline(context.config));
+    let context_str = select_loop
+        .context_expr
+        .rewrite_result(context, nested_shape)?;
+    result.push_str(&context_str);
+    result.push(',');
+
+    if select_loop.items.is_empty() {
+        result.push_str(&shape.indent.to_string_with_newline(context.config));
+        result.push('}');
+        return Ok(result);
+    }
+
+    // Use itemize_list to preserve comments between items
+    // The prev_span_end starts after the comma following the context expression
+    // This ensures comments between the comma and first item are captured
+    let after_context_comma = context.snippet_provider.span_after(
+        Span::new(select_loop.context_span.hi(), span.hi(), span.ctxt(), None),
+        ",",
+    );
+    let item_list = itemize_list(
+        context.snippet_provider,
+        select_loop.items.iter(),
+        "}",
+        ",",
+        |item| item.span().lo(),
+        |item| item.span().hi(),
+        |item| match item {
+            SelectLoopItem::OnStart { body, .. } => {
+                format_arm(context, "on_start", body, nested_shape)
+            }
+            SelectLoopItem::OnStopped { body, .. } => {
+                format_arm(context, "on_stopped", body, nested_shape)
+            }
+            SelectLoopItem::OnEnd { body, .. } => format_arm(context, "on_end", body, nested_shape),
+            SelectLoopItem::Branch(branch) => format_select_branch(context, branch, nested_shape),
+        },
+        after_context_comma,
+        span.hi(),
+        false,
+    )
+    .collect::<Vec<_>>();
+
+    let fmt = ListFormatting::new(nested_shape, context.config)
+        .separator("")
+        .preserve_newline(true);
+
+    let items_str = write_list(&item_list, &fmt)?;
+
+    result.push_str(&nested_shape.indent.to_string_with_newline(context.config));
+    result.push_str(&items_str);
     result.push_str(&shape.indent.to_string_with_newline(context.config));
     result.push('}');
 
