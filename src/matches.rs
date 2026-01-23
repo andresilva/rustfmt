@@ -342,12 +342,13 @@ fn stmt_is_expr_mac(stmt: &ast::Stmt) -> bool {
 fn block_can_be_flattened<'a>(
     context: &RewriteContext<'_>,
     expr: &'a ast::Expr,
+    skip_macro_check: bool,
 ) -> Option<&'a ast::Block> {
     match expr.kind {
         ast::ExprKind::Block(ref block, label)
             if label.is_none()
                 && !is_unsafe_block(block)
-                && !context.inside_macro()
+                && (skip_macro_check || !context.inside_macro())
                 && is_simple_block(context, block, Some(&expr.attrs))
                 && !stmt_is_expr_mac(&block.stmts[0]) =>
         {
@@ -360,19 +361,21 @@ fn block_can_be_flattened<'a>(
 // (extend, body)
 // @extend: true if the arm body can be put next to `=>`
 // @body: flattened body, if the body is block with a single expression
-fn flatten_arm_body<'a>(
+// @skip_macro_check: if true, allows flattening even inside macros (used for select!)
+fn flatten_arm_body_impl<'a>(
     context: &'a RewriteContext<'_>,
     body: &'a ast::Expr,
     opt_shape: Option<Shape>,
+    skip_macro_check: bool,
 ) -> (bool, &'a ast::Expr) {
     let can_extend =
         |expr| !context.config.force_multiline_blocks() && can_flatten_block_around_this(expr);
 
-    if let Some(block) = block_can_be_flattened(context, body) {
+    if let Some(block) = block_can_be_flattened(context, body, skip_macro_check) {
         if let ast::StmtKind::Expr(ref expr) = block.stmts[0].kind {
             if let ast::ExprKind::Block(..) = expr.kind {
                 if expr.attrs.is_empty() {
-                    flatten_arm_body(context, expr, None)
+                    flatten_arm_body_impl(context, expr, None, skip_macro_check)
                 } else {
                     (true, body)
                 }
@@ -392,6 +395,25 @@ fn flatten_arm_body<'a>(
     } else {
         (can_extend(body), &*body)
     }
+}
+
+/// Flatten match arm body, extracting the inner expression from simple blocks.
+fn flatten_arm_body<'a>(
+    context: &'a RewriteContext<'_>,
+    body: &'a ast::Expr,
+    opt_shape: Option<Shape>,
+) -> (bool, &'a ast::Expr) {
+    flatten_arm_body_impl(context, body, opt_shape, false)
+}
+
+/// Like `flatten_arm_body` but for select! macros (skips inside_macro check).
+/// Returns (extend, body) where extend=false means body must go on next line.
+pub(crate) fn flatten_arm_body_for_select<'a>(
+    context: &'a RewriteContext<'_>,
+    body: &'a ast::Expr,
+    opt_shape: Option<Shape>,
+) -> (bool, &'a ast::Expr) {
+    flatten_arm_body_impl(context, body, opt_shape, true)
 }
 
 fn rewrite_match_body(
@@ -610,12 +632,14 @@ fn rewrite_guard(
     }
 }
 
-fn nop_block_collapse(block_str: RewriteResult, budget: usize) -> RewriteResult {
+pub(crate) fn nop_block_collapse(block_str: RewriteResult, budget: usize) -> RewriteResult {
     debug!("nop_block_collapse {:?} {}", block_str, budget);
     block_str.map(|block_str| {
         if block_str.starts_with('{')
             && budget >= 2
-            && (block_str[1..].find(|c: char| !c.is_whitespace()).unwrap() == block_str.len() - 2)
+            && block_str[1..]
+                .find(|c: char| !c.is_whitespace())
+                .is_some_and(|pos| pos == block_str.len() - 2)
         {
             String::from("{}")
         } else {
