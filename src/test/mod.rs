@@ -38,6 +38,7 @@ const FILE_SKIP_LIST: &[&str] = &[
     "issue-3779/ice.rs",
     // These files and directory are a part of modules defined inside `cfg_if!`.
     "cfg_if/mod.rs",
+    "cfg_if/lib.rs",
     "cfg_if/detect",
     "issue-3253/foo.rs",
     "issue-3253/bar.rs",

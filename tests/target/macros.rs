@@ -1216,3 +1216,173 @@ f!(match a {
 
 // #3583
 foo!(|x = y|);
+
+// cfg_if! macro formatting tests
+cfg_if! {
+    if #[cfg(unix)] {
+        fn foo() {
+            println!("unix");
+        }
+    } else if #[cfg(target_pointer_width = "32")] {
+        fn foo() {
+            println!("32-bit");
+        }
+    } else {
+        fn foo() {
+            println!("other");
+        }
+    }
+}
+
+cfg_if::cfg_if! {
+    if #[cfg(feature = "std")] {
+        use std::collections::HashMap;
+        pub struct Foo {
+            x: i32,
+            y: i32,
+        }
+    } else {
+        use alloc::collections::BTreeMap;
+        pub struct Foo {
+            x: i32,
+            y: i32,
+        }
+    }
+}
+
+// Single branch
+cfg_if! {
+    if #[cfg(windows)] {
+        const PATH_SEP: char = '\\';
+    }
+}
+
+// Empty macro
+cfg_if! {}
+
+// Complex cfg conditions
+cfg_if! {
+    if #[cfg(all(target_os = "linux", target_arch = "x86_64"))] {
+        type NativeInt = i64;
+    } else if #[cfg(any(target_os = "macos", target_os = "ios"))] {
+        type NativeInt = i64;
+    } else {
+        type NativeInt = isize;
+    }
+}
+
+// Trailing comment on if branch
+cfg_if! {
+    if #[cfg(unix)] { // Unix implementation
+        const IS_UNIX: bool = true;
+    } else { // Default to non-Unix
+        const IS_UNIX: bool = false;
+    }
+}
+
+// Attributes inside branches should be formatted
+cfg_if! {
+    if #[cfg(feature = "std")] {
+        fn foo() {}
+    } else if #[cfg(all(target_os = "linux", target_arch = "x86_64"))] {
+        fn foo() {}
+    }
+}
+
+// Complex real-world case with impl blocks
+cfg_if::cfg_if! {
+    if #[cfg(feature = "aws")] {
+        #[derive(Debug, Clone, Copy)]
+        pub enum Architecture {
+            Arm64,
+            X86_64,
+        }
+
+        impl Architecture {
+            pub const fn as_str(&self) -> &'static str {
+                match self {
+                    Self::Arm64 => "arm64",
+                    Self::X86_64 => "amd64",
+                }
+            }
+        }
+    } else {
+        pub const DEFAULT: &str = "none";
+    }
+}
+
+// Raw strings inside cfg_if should be preserved
+cfg_if! {
+    if #[cfg(test)] {
+        const SQL: &str = r#"
+            SELECT *
+            FROM users
+            WHERE id = 1
+        "#;
+    }
+}
+
+// Enum with long line should still format subsequent variants
+// (regression test: one overlong variant shouldn't prevent formatting of others)
+pub enum Error {
+    LongVariant(very_long_module::path::that::exceeds::the::maximum::line::width::LongTypeName),
+    StructVariant {
+        field1: String,
+        field2: i32,
+        field3: SomeLongerTypeName,
+        field4: AnotherType,
+    },
+}
+
+// cfg_if with comment between if and #[cfg] should be preserved (bail out)
+cfg_if! {
+    if /* comment */ #[cfg(unix)] {
+        const X: i32 = 1;
+    }
+}
+
+// cfg_if with comment between #[cfg] and { should be preserved (bail out)
+cfg_if! {
+    if #[cfg(unix)] /* comment */ {
+        const Y: i32 = 2;
+    }
+}
+
+// cfg_if with comment between } and else should be preserved (bail out)
+cfg_if! {
+    if #[cfg(unix)] {
+        const A: i32 = 1;
+    } /* comment */ else {
+        const A: i32 = 2;
+    }
+}
+
+// cfg_if inside function (statement position) should be formatted
+fn test_cfg_if_in_function() {
+    cfg_if::cfg_if! {
+        if #[cfg(unix)] {
+            let x = 1;
+            foo(x);
+        } else {
+            bar();
+        }
+    }
+}
+
+// cfg_if with comment between else and if should be preserved (bail out)
+cfg_if! {
+    if #[cfg(a)] {
+        const B: i32 = 1;
+    } else /* comment */ if #[cfg(b)] {
+        const B: i32 = 2;
+    }
+}
+
+// cfg_if with comment between else and { should be preserved (bail out)
+cfg_if! {
+    if #[cfg(unix)] {
+        const C: i32 = 1;
+    } else /* comment */ {
+        const C: i32 = 2;
+    }
+}
