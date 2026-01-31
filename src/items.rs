@@ -684,28 +684,46 @@ impl<'a> FmtVisitor<'a> {
             .map_or(field.span.lo(), |attr| attr.span.hi());
         let span = mk_sp(lo, field.span.lo());
 
-        let variant_body = match field.data {
-            ast::VariantData::Tuple(..) | ast::VariantData::Struct { .. } => format_struct(
-                &context,
-                &StructParts::from_variant(field, &context),
-                self.block_indent,
-                Some(one_line_width),
-            )?,
-            ast::VariantData::Unit(..) => rewrite_ident(&context, field.ident).to_owned(),
+        let (variant_body, used_fallback) = match field.data {
+            ast::VariantData::Tuple(..) | ast::VariantData::Struct { .. } => {
+                match format_struct(
+                    &context,
+                    &StructParts::from_variant(field, &context),
+                    self.block_indent,
+                    Some(one_line_width),
+                ) {
+                    Some(s) => (s, false),
+                    None => {
+                        // If formatting fails (e.g., due to exceeding max_width), fall back to
+                        // the original snippet for this variant body. This ensures that one
+                        // unformattable variant doesn't prevent formatting of subsequent variants.
+                        // The fallback span includes any discriminant, so we skip discriminant
+                        // formatting when using the fallback.
+                        let variant_body_span = mk_sp(field.ident.span.lo(), field.span.hi());
+                        (self.snippet(variant_body_span).to_owned(), true)
+                    }
+                }
+            }
+            ast::VariantData::Unit(..) => (rewrite_ident(&context, field.ident).to_owned(), false),
         };
 
-        let variant_body = if let Some(ref expr) = field.disr_expr {
-            let lhs = format!("{variant_body:pad_discrim_ident_to$} =");
-            let ex = &*expr.value;
-            rewrite_assign_rhs_with(
-                &context,
-                lhs,
-                ex,
-                shape,
-                &RhsAssignKind::Expr(&ex.kind, ex.span),
-                RhsTactics::AllowOverflow,
-            )
-            .ok()?
+        // Skip discriminant formatting if we used the fallback snippet (which already includes it)
+        let variant_body = if !used_fallback {
+            if let Some(ref expr) = field.disr_expr {
+                let lhs = format!("{variant_body:pad_discrim_ident_to$} =");
+                let ex = &*expr.value;
+                rewrite_assign_rhs_with(
+                    &context,
+                    lhs,
+                    ex,
+                    shape,
+                    &RhsAssignKind::Expr(&ex.kind, ex.span),
+                    RhsTactics::AllowOverflow,
+                )
+                .ok()?
+            } else {
+                variant_body
+            }
         } else {
             variant_body
         };

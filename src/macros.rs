@@ -31,6 +31,7 @@ use crate::expr::{
 use crate::lists::{ListFormatting, itemize_list, write_list};
 use crate::matches::{flatten_arm_body_for_select, nop_block_collapse};
 use crate::overflow;
+use crate::parse::macros::cfg_if::{CfgIfBranch, CfgIfBranchKind, parse_cfg_if_for_format};
 use crate::parse::macros::lazy_static::parse_lazy_static;
 use crate::parse::macros::select::{
     SelectBranch, SelectItem, SelectLoopItem, parse_select, parse_select_loop,
@@ -280,6 +281,21 @@ fn rewrite_macro_inner(
     ) && original_style == Delimiter::Brace
     {
         match format_select_loop_macro(context, shape, ts.clone(), mac.span(), &macro_name) {
+            Ok(rw) => return Ok(rw),
+            Err(err) => match err {
+                RewriteError::MacroFailure { kind, span: _ }
+                    if kind == MacroErrorKind::ParseFailure => {}
+                _ => return Err(err),
+            },
+        }
+    }
+
+    // Format cfg_if! macro (in item or statement position with brace delimiters)
+    if matches!(macro_name.as_str(), "cfg_if!" | "cfg_if::cfg_if!")
+        && original_style == Delimiter::Brace
+        && matches!(position, MacroPosition::Item | MacroPosition::Statement)
+    {
+        match format_cfg_if_macro(context, shape, ts.clone(), mac.span(), &macro_name) {
             Ok(rw) => return Ok(rw),
             Err(err) => match err {
                 RewriteError::MacroFailure { kind, span: _ }
@@ -1795,6 +1811,288 @@ fn format_select_loop_macro(
     result.push('}');
 
     Ok(result)
+}
+
+/// Format `cfg_if!` macro.
+///
+/// # Expected syntax
+///
+/// ```text
+/// cfg_if! {
+///     if #[cfg(condition1)] { // optional trailing comment
+///         // items
+///     } else if #[cfg(condition2)] {
+///         // items
+///     } else { // optional trailing comment
+///         // items
+///     }
+/// }
+/// ```
+fn format_cfg_if_macro(
+    context: &RewriteContext<'_>,
+    shape: Shape,
+    ts: TokenStream,
+    span: Span,
+    macro_name: &str,
+) -> RewriteResult {
+    let branches =
+        parse_cfg_if_for_format(context, ts).macro_error(MacroErrorKind::ParseFailure, span)?;
+
+    if branches.is_empty() {
+        return Ok(format!("{} {{}}", macro_name));
+    }
+
+    // Check for comments at branch seams that would be lost during formatting.
+    // If found, bail out and let the default macro formatter handle it.
+    if has_comments_at_branch_seams(context, &branches) {
+        return Err(RewriteError::MacroFailure {
+            kind: MacroErrorKind::ParseFailure,
+            span,
+        });
+    }
+
+    let nested_shape = shape
+        .block_indent(context.config.tab_spaces())
+        .with_max_width(context.config);
+    let body_shape = nested_shape
+        .block_indent(context.config.tab_spaces())
+        .with_max_width(context.config);
+
+    let mut result = String::with_capacity(1024);
+    result.push_str(macro_name);
+    result.push_str(" {");
+
+    for (i, branch) in branches.iter().enumerate() {
+        result.push_str(&nested_shape.indent.to_string_with_newline(context.config));
+
+        // Format branch header
+        match branch.kind {
+            CfgIfBranchKind::If => {
+                result.push_str("if ");
+            }
+            CfgIfBranchKind::ElseIf => {
+                result.push_str("} else if ");
+            }
+            CfgIfBranchKind::Else => {
+                result.push_str("} else ");
+            }
+        }
+
+        // Format the #[cfg(...)] attribute if present
+        if let Some(ref attr) = branch.cfg_attr {
+            let attr_str = attr
+                .rewrite_result(context, nested_shape)
+                .unwrap_or_else(|_| pprust::attribute_to_string(attr));
+            result.push_str(&attr_str);
+            result.push(' ');
+        }
+
+        result.push('{');
+
+        // Extract trailing comment on the header line (after `{`)
+        let trailing_comment =
+            extract_trailing_comment(context, branch.open_brace_span, branch.close_brace_span);
+        if let Some(ref comment) = trailing_comment {
+            result.push(' ');
+            result.push_str(comment);
+        }
+
+        // Format the branch body
+        let body_span = mk_sp(branch.open_brace_span.hi(), branch.close_brace_span.lo());
+        let body_snippet = context.snippet(body_span);
+
+        // Skip trailing comment on first line if present
+        let body_after_comment = if trailing_comment.is_some() {
+            body_snippet
+                .find('\n')
+                .map(|i| &body_snippet[i + 1..])
+                .unwrap_or("")
+        } else {
+            body_snippet
+        };
+
+        // Strip common leading indentation from all lines, but preserve string content
+        // Use LineClasses to be string-aware (like trim_left_preserve_layout)
+        let lines_with_kind: Vec<_> = LineClasses::new(body_after_comment).collect();
+
+        // Helper to check if a line is inside string content (should not be modified)
+        let is_string_content = |kind: &FullCodeCharKind| {
+            matches!(
+                kind,
+                FullCodeCharKind::InString
+                    | FullCodeCharKind::InStringCommented
+                    | FullCodeCharKind::EndString
+                    | FullCodeCharKind::EndStringCommented
+            )
+        };
+
+        // Find minimum indent, excluding lines inside strings
+        let min_indent = lines_with_kind
+            .iter()
+            .filter_map(|(kind, line)| {
+                if line.trim().is_empty() || is_string_content(kind) {
+                    return None;
+                }
+                Some(line.len() - line.trim_start().len())
+            })
+            .min()
+            .unwrap_or(0);
+
+        // Strip indent from code lines, but preserve string content lines exactly
+        let body_str: String = lines_with_kind
+            .iter()
+            .map(|(kind, line)| {
+                if is_string_content(kind) {
+                    // Lines inside strings should be preserved exactly
+                    line.to_owned()
+                } else if line.trim().is_empty() {
+                    "".to_owned()
+                } else if line.len() > min_indent {
+                    line[min_indent..].to_owned()
+                } else {
+                    line.trim_start().to_owned()
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        let body_str = body_str.trim();
+
+        if !body_str.is_empty() {
+            // Set up config for formatting body. Reduce max_width by the body
+            // indentation so formatted lines fit after indenting.
+            let mut config = context.config.clone();
+            config.set().show_parse_errors(false);
+            let body_indent_width = body_shape.indent.width();
+            let adjusted_max_width = context.config.max_width().saturating_sub(body_indent_width);
+            config.set().max_width(adjusted_max_width);
+
+            // First try to format as items, then as statements (like MacroBranch::rewrite)
+            let new_body_snippet = match crate::format_snippet(body_str, &config, false) {
+                Some(new_body) => Some(new_body),
+                None => crate::format_code_block(body_str, &config, false),
+            };
+            if let Some(formatted) = new_body_snippet {
+                // Indent the body since it is in a block (same approach as MacroBranch::rewrite)
+                let indent_str = body_shape.indent.to_string(context.config);
+                let new_body = LineClasses::new(formatted.snippet.trim_end())
+                    .enumerate()
+                    .fold(
+                        (String::new(), true),
+                        |(mut s, need_indent), (i, (kind, ref line))| {
+                            if !is_empty_line(line)
+                                && need_indent
+                                && !formatted.is_line_non_formatted(i + 1)
+                            {
+                                s += "\n";
+                                s += &indent_str;
+                            } else if !s.is_empty() {
+                                s += "\n";
+                            }
+                            (s + line, indent_next_line(kind, line, context.config))
+                        },
+                    )
+                    .0;
+                result.push_str(&new_body);
+            } else {
+                // Fallback: preserve original with proper indentation
+                // body_str already has common indentation stripped
+                for line in body_str.lines() {
+                    if line.trim().is_empty() {
+                        result.push('\n');
+                    } else {
+                        result.push_str(&body_shape.indent.to_string_with_newline(context.config));
+                        result.push_str(line);
+                    }
+                }
+            }
+        }
+
+        // Only close the last branch with a separate `}`
+        if i == branches.len() - 1 {
+            result.push_str(&nested_shape.indent.to_string_with_newline(context.config));
+            result.push('}');
+        }
+    }
+
+    result.push_str(&shape.indent.to_string_with_newline(context.config));
+    result.push('}');
+
+    Ok(result)
+}
+
+/// Check if there are comments at branch seams (between `}` and `else`, between `else` and `if`,
+/// between `if` and `#[cfg(...)]`, or between `#[cfg(...)]` and `{`) that would be lost.
+fn has_comments_at_branch_seams(context: &RewriteContext<'_>, branches: &[CfgIfBranch]) -> bool {
+    for (i, branch) in branches.iter().enumerate() {
+        // Check for comments between `if` and `#[cfg(...)]`
+        if let (Some(if_span), Some(ref attr)) = (branch.if_span, &branch.cfg_attr) {
+            let between = context.snippet(mk_sp(if_span.hi(), attr.span.lo()));
+            if contains_comment(between) {
+                return true;
+            }
+        }
+
+        // Check for comments between `#[cfg(...)]` and `{`
+        if let Some(ref attr) = branch.cfg_attr {
+            let between = context.snippet(mk_sp(attr.span.hi(), branch.open_brace_span.lo()));
+            if contains_comment(between) {
+                return true;
+            }
+        }
+
+        // Check for comments between previous branch's `}` and `else`
+        if let Some(else_span) = branch.else_span {
+            let prev_close = branches[i - 1].close_brace_span;
+            let between = context.snippet(mk_sp(prev_close.hi(), else_span.lo()));
+            if contains_comment(between) {
+                return true;
+            }
+        }
+
+        // Check for comments between `else` and `if` (for else-if branches)
+        if let (Some(else_span), Some(if_span)) = (branch.else_span, branch.if_span) {
+            let between = context.snippet(mk_sp(else_span.hi(), if_span.lo()));
+            if contains_comment(between) {
+                return true;
+            }
+        }
+
+        // Check for comments between `else` and `{` (for final else branch)
+        if branch.kind == CfgIfBranchKind::Else {
+            if let Some(else_span) = branch.else_span {
+                let between = context.snippet(mk_sp(else_span.hi(), branch.open_brace_span.lo()));
+                if contains_comment(between) {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
+/// Extract a trailing comment on the same line after an opening brace.
+/// Returns Some(comment) if found, None otherwise.
+fn extract_trailing_comment(
+    context: &RewriteContext<'_>,
+    open_brace_span: Span,
+    close_brace_span: Span,
+) -> Option<String> {
+    let snippet = context.snippet(mk_sp(open_brace_span.hi(), close_brace_span.lo()));
+
+    // Get the first line (everything up to the first newline)
+    let first_line = snippet.lines().next().unwrap_or("");
+    let trimmed = first_line.trim();
+
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    // Check for // or /* comment
+    if trimmed.starts_with("//") || trimmed.starts_with("/*") {
+        Some(trimmed.to_string())
+    } else {
+        None
+    }
 }
 
 fn rewrite_macro_with_items(
