@@ -6,6 +6,7 @@ use tracing::debug;
 use crate::attr::MetaVisitor;
 use crate::parse::macros::cfg_if::parse_cfg_if;
 use crate::parse::macros::cfg_match::parse_cfg_match;
+use crate::parse::macros::stability::{parse_stability_mod, parse_stability_scope};
 use crate::parse::session::ParseSess;
 
 pub(crate) struct ModItem {
@@ -169,5 +170,107 @@ fn meta_item_lit_to_str(lit: &ast::MetaItemLit) -> String {
     match lit.kind {
         ast::LitKind::Str(symbol, ..) => symbol.as_str().replace("/", "\\"),
         _ => unreachable!(),
+    }
+}
+
+/// Traverse `stability_mod!` macro and fetch modules.
+pub(crate) struct StabilityModVisitor<'a> {
+    psess: &'a ParseSess,
+    mods: Vec<ModItem>,
+}
+
+impl<'a> StabilityModVisitor<'a> {
+    pub(crate) fn new(psess: &'a ParseSess) -> StabilityModVisitor<'a> {
+        StabilityModVisitor {
+            mods: vec![],
+            psess,
+        }
+    }
+
+    pub(crate) fn mods(self) -> Vec<ModItem> {
+        self.mods
+    }
+}
+
+impl<'a, 'ast: 'a> Visitor<'ast> for StabilityModVisitor<'a> {
+    fn visit_mac_call(&mut self, mac: &'ast ast::MacCall) {
+        match self.visit_mac_inner(mac) {
+            Ok(()) => (),
+            Err(e) => debug!("{}", e),
+        }
+    }
+}
+
+impl<'a, 'ast: 'a> StabilityModVisitor<'a> {
+    fn visit_mac_inner(&mut self, mac: &'ast ast::MacCall) -> Result<(), &'static str> {
+        // Support both:
+        // `stability_mod!(...)` and `some_crate::stability_mod!(...)`
+        match mac.path.segments.last() {
+            Some(last_segment) => {
+                if last_segment.ident.name != Symbol::intern("stability_mod") {
+                    return Err("Expected stability_mod");
+                }
+            }
+            None => {
+                return Err("Expected stability_mod");
+            }
+        };
+
+        let items = parse_stability_mod(self.psess, mac)?;
+        self.mods
+            .append(&mut items.into_iter().map(|item| ModItem { item }).collect());
+
+        Ok(())
+    }
+}
+
+/// Traverse `stability_scope!` macro and fetch modules.
+pub(crate) struct StabilityScopeVisitor<'a> {
+    psess: &'a ParseSess,
+    mods: Vec<ModItem>,
+}
+
+impl<'a> StabilityScopeVisitor<'a> {
+    pub(crate) fn new(psess: &'a ParseSess) -> StabilityScopeVisitor<'a> {
+        StabilityScopeVisitor {
+            mods: vec![],
+            psess,
+        }
+    }
+
+    pub(crate) fn mods(self) -> Vec<ModItem> {
+        self.mods
+    }
+}
+
+impl<'a, 'ast: 'a> Visitor<'ast> for StabilityScopeVisitor<'a> {
+    fn visit_mac_call(&mut self, mac: &'ast ast::MacCall) {
+        match self.visit_mac_inner(mac) {
+            Ok(()) => (),
+            Err(e) => debug!("{}", e),
+        }
+    }
+}
+
+impl<'a, 'ast: 'a> StabilityScopeVisitor<'a> {
+    fn visit_mac_inner(&mut self, mac: &'ast ast::MacCall) -> Result<(), &'static str> {
+        // Support both:
+        // `stability_scope!(...)` and `some_crate::stability_scope!(...)`
+        match mac.path.segments.last() {
+            Some(last_segment) => {
+                if last_segment.ident.name != Symbol::intern("stability_scope") {
+                    return Err("Expected stability_scope");
+                }
+            }
+            None => {
+                return Err("Expected stability_scope");
+            }
+        };
+
+        let items = parse_stability_scope(self.psess, mac)?;
+        self.mods
+            .append(&mut items.into_iter().map(|item| ModItem { item }).collect());
+
+        Ok(())
     }
 }
