@@ -36,6 +36,9 @@ use crate::parse::macros::lazy_static::parse_lazy_static;
 use crate::parse::macros::select::{
     SelectBranch, SelectItem, SelectLoopItem, parse_select, parse_select_loop,
 };
+use crate::parse::macros::stability::{
+    parse_stability_mod_for_format, parse_stability_scope_for_format,
+};
 use crate::parse::macros::{ParsedMacroArgs, parse_expr, parse_macro_args};
 use crate::rewrite::{
     MacroErrorKind, Rewrite, RewriteContext, RewriteError, RewriteErrorExt, RewriteResult,
@@ -296,6 +299,58 @@ fn rewrite_macro_inner(
         && matches!(position, MacroPosition::Item | MacroPosition::Statement)
     {
         match format_cfg_if_macro(context, shape, ts.clone(), mac.span(), &macro_name) {
+            Ok(rw) => return Ok(rw),
+            Err(err) => match err {
+                RewriteError::MacroFailure { kind, span: _ }
+                    if kind == MacroErrorKind::ParseFailure => {}
+                _ => return Err(err),
+            },
+        }
+    }
+
+    // Format stability_mod! macro (in item or statement position with parenthesis delimiters)
+    // Note: Comments between `!` and `(` are dropped by rustfmt's generic macro handling
+    // (same limitation as cfg_if! and other macros).
+    if matches!(
+        macro_name.as_str(),
+        "stability_mod!" | "commonware_macros::stability_mod!"
+    ) && original_style == Delimiter::Parenthesis
+        && matches!(position, MacroPosition::Item | MacroPosition::Statement)
+    {
+        match format_stability_mod_macro(
+            context,
+            shape,
+            ts.clone(),
+            mac.span(),
+            mk_sp(mac.args.dspan.open.hi(), mac.args.dspan.close.lo()),
+            &macro_name,
+        ) {
+            Ok(rw) => return Ok(rw),
+            Err(err) => match err {
+                RewriteError::MacroFailure { kind, span: _ }
+                    if kind == MacroErrorKind::ParseFailure => {}
+                _ => return Err(err),
+            },
+        }
+    }
+
+    // Format stability_scope! macro (in item or statement position with parenthesis delimiters)
+    // Note: Comments between `!` and `(` are dropped by rustfmt's generic macro handling
+    // (same limitation as cfg_if! and other macros).
+    if matches!(
+        macro_name.as_str(),
+        "stability_scope!" | "commonware_macros::stability_scope!"
+    ) && original_style == Delimiter::Parenthesis
+        && matches!(position, MacroPosition::Item | MacroPosition::Statement)
+    {
+        match format_stability_scope_macro(
+            context,
+            shape,
+            ts.clone(),
+            mac.span(),
+            mk_sp(mac.args.dspan.open.hi(), mac.args.dspan.close.lo()),
+            &macro_name,
+        ) {
             Ok(rw) => return Ok(rw),
             Err(err) => match err {
                 RewriteError::MacroFailure { kind, span: _ }
@@ -2095,6 +2150,305 @@ fn extract_trailing_comment(
     }
 }
 
+/// Format `stability_mod!` macro.
+///
+/// # Expected syntax
+///
+/// ```text
+/// stability_mod!(LEVEL, pub mod name);
+/// ```
+fn format_stability_mod_macro(
+    context: &RewriteContext<'_>,
+    _shape: Shape,
+    ts: TokenStream,
+    span: Span,
+    args_span: Span,
+    macro_name: &str,
+) -> RewriteResult {
+    let parsed = parse_stability_mod_for_format(context, ts)
+        .macro_error(MacroErrorKind::ParseFailure, span)?;
+
+    // Check for leading comments before level span
+    let leading = context.snippet(mk_sp(args_span.lo(), parsed.level_span.lo()));
+    if contains_comment(leading) {
+        return Err(RewriteError::MacroFailure {
+            kind: MacroErrorKind::ParseFailure,
+            span,
+        });
+    }
+
+    // Check for comments in the level span that would be lost when trimming
+    let level_snippet = context.snippet(parsed.level_span);
+    if contains_comment(level_snippet) {
+        return Err(RewriteError::MacroFailure {
+            kind: MacroErrorKind::ParseFailure,
+            span,
+        });
+    }
+
+    // Check for comments between level and item (around the comma)
+    let between_level_and_item =
+        context.snippet(mk_sp(parsed.level_span.hi(), parsed.item_span.lo()));
+    if contains_comment(between_level_and_item) {
+        return Err(RewriteError::MacroFailure {
+            kind: MacroErrorKind::ParseFailure,
+            span,
+        });
+    }
+
+    // Check for trailing comments after item span
+    let trailing = context.snippet(mk_sp(parsed.item_span.hi(), args_span.hi()));
+    if contains_comment(trailing) {
+        return Err(RewriteError::MacroFailure {
+            kind: MacroErrorKind::ParseFailure,
+            span,
+        });
+    }
+
+    let mut result = String::with_capacity(256);
+    result.push_str(macro_name);
+    result.push('(');
+
+    // Format the level
+    let level_snippet = context.snippet(parsed.level_span);
+    result.push_str(level_snippet.trim());
+    result.push_str(", ");
+
+    // Format the item - parse and reformat it
+    let item_snippet = context.snippet(parsed.item_span);
+
+    // Set up config for formatting the item
+    let mut config = context.config.clone();
+    config.set().show_parse_errors(false);
+
+    // Try to format the item
+    if let Some(formatted) = crate::format_snippet(item_snippet.trim(), &config, false) {
+        result.push_str(formatted.snippet.trim());
+    } else {
+        result.push_str(item_snippet.trim());
+    }
+
+    result.push_str(");");
+
+    Ok(result)
+}
+
+/// Format `stability_scope!` macro.
+///
+/// # Expected syntax
+///
+/// ```text
+/// stability_scope!(LEVEL {
+///     // items
+/// });
+///
+/// stability_scope!(LEVEL, cfg(predicate) {
+///     // items
+/// });
+/// ```
+fn format_stability_scope_macro(
+    context: &RewriteContext<'_>,
+    shape: Shape,
+    ts: TokenStream,
+    span: Span,
+    args_span: Span,
+    macro_name: &str,
+) -> RewriteResult {
+    let parsed = parse_stability_scope_for_format(context, ts)
+        .macro_error(MacroErrorKind::ParseFailure, span)?;
+
+    // Check for leading comments before level span
+    let leading = context.snippet(mk_sp(args_span.lo(), parsed.level_span.lo()));
+    if contains_comment(leading) {
+        return Err(RewriteError::MacroFailure {
+            kind: MacroErrorKind::ParseFailure,
+            span,
+        });
+    }
+
+    // Check for comments in the level span
+    let level_snippet = context.snippet(parsed.level_span);
+    if contains_comment(level_snippet) {
+        return Err(RewriteError::MacroFailure {
+            kind: MacroErrorKind::ParseFailure,
+            span,
+        });
+    }
+
+    // Check for comments in the cfg span if present
+    if let Some(cfg_span) = parsed.cfg_span {
+        let cfg_snippet = context.snippet(cfg_span);
+        if contains_comment(cfg_snippet) {
+            return Err(RewriteError::MacroFailure {
+                kind: MacroErrorKind::ParseFailure,
+                span,
+            });
+        }
+    }
+
+    // Check for comments between level/cfg and opening brace
+    let last_prefix_span = parsed.cfg_span.unwrap_or(parsed.level_span);
+    let between_prefix_and_brace =
+        context.snippet(mk_sp(last_prefix_span.hi(), parsed.open_brace_span.lo()));
+    if contains_comment(between_prefix_and_brace) {
+        return Err(RewriteError::MacroFailure {
+            kind: MacroErrorKind::ParseFailure,
+            span,
+        });
+    }
+
+    // Check for trailing comments after close brace span
+    let trailing = context.snippet(mk_sp(parsed.close_brace_span.hi(), args_span.hi()));
+    if contains_comment(trailing) {
+        return Err(RewriteError::MacroFailure {
+            kind: MacroErrorKind::ParseFailure,
+            span,
+        });
+    }
+
+    let body_shape = shape
+        .block_indent(context.config.tab_spaces())
+        .with_max_width(context.config);
+
+    let mut result = String::with_capacity(1024);
+    result.push_str(macro_name);
+    result.push('(');
+
+    // Format the level
+    result.push_str(level_snippet.trim());
+
+    // Format the cfg predicate if present
+    if let Some(cfg_span) = parsed.cfg_span {
+        result.push_str(", ");
+        let cfg_snippet = context.snippet(cfg_span);
+        // Try to format the cfg predicate by wrapping it as an attribute and formatting
+        let formatted_cfg = format_cfg_as_attr(context, cfg_snippet.trim())
+            .unwrap_or_else(|| cfg_snippet.trim().to_string());
+        result.push_str(&formatted_cfg);
+    }
+
+    result.push_str(" {");
+
+    // Extract trailing comment on the header line (after `{`)
+    let trailing_comment =
+        extract_trailing_comment(context, parsed.open_brace_span, parsed.close_brace_span);
+    if let Some(ref comment) = trailing_comment {
+        result.push(' ');
+        result.push_str(comment);
+    }
+
+    // Format the body
+    let body_span = mk_sp(parsed.open_brace_span.hi(), parsed.close_brace_span.lo());
+    let body_snippet = context.snippet(body_span);
+
+    // Skip trailing comment on first line if present
+    let body_after_comment = if trailing_comment.is_some() {
+        body_snippet
+            .find('\n')
+            .map(|i| &body_snippet[i + 1..])
+            .unwrap_or("")
+    } else {
+        body_snippet
+    };
+
+    // Strip common leading indentation from all lines, but preserve string content
+    // Use LineClasses to be string-aware
+    let lines_with_kind: Vec<_> = LineClasses::new(body_after_comment).collect();
+
+    // Helper to check if a line is inside string content (should not be modified)
+    let is_string_content = |kind: &FullCodeCharKind| {
+        matches!(
+            kind,
+            FullCodeCharKind::InString
+                | FullCodeCharKind::InStringCommented
+                | FullCodeCharKind::EndString
+                | FullCodeCharKind::EndStringCommented
+        )
+    };
+
+    // Find minimum indent, excluding lines inside strings
+    let min_indent = lines_with_kind
+        .iter()
+        .filter_map(|(kind, line)| {
+            if line.trim().is_empty() || is_string_content(kind) {
+                return None;
+            }
+            Some(line.len() - line.trim_start().len())
+        })
+        .min()
+        .unwrap_or(0);
+
+    // Strip indent from code lines, but preserve string content lines exactly
+    let body_str: String = lines_with_kind
+        .iter()
+        .map(|(kind, line)| {
+            if is_string_content(kind) {
+                // Lines inside strings should be preserved exactly
+                line.to_owned()
+            } else if line.trim().is_empty() {
+                "".to_owned()
+            } else if line.len() > min_indent {
+                line[min_indent..].to_owned()
+            } else {
+                line.trim_start().to_owned()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    let body_str = body_str.trim();
+
+    if !body_str.is_empty() {
+        // Set up config for formatting body
+        let mut config = context.config.clone();
+        config.set().show_parse_errors(false);
+        let body_indent_width = body_shape.indent.width();
+        let adjusted_max_width = context.config.max_width().saturating_sub(body_indent_width);
+        config.set().max_width(adjusted_max_width);
+
+        // Format as items (stability_scope only contains items, not arbitrary code)
+        let new_body_snippet = crate::format_snippet(body_str, &config, false);
+
+        if let Some(formatted) = new_body_snippet {
+            // Indent the body
+            let indent_str = body_shape.indent.to_string(context.config);
+            let new_body = LineClasses::new(formatted.snippet.trim_end())
+                .enumerate()
+                .fold(
+                    (String::new(), true),
+                    |(mut s, need_indent), (i, (kind, ref line))| {
+                        if !is_empty_line(line)
+                            && need_indent
+                            && !formatted.is_line_non_formatted(i + 1)
+                        {
+                            s += "\n";
+                            s += &indent_str;
+                        } else if !s.is_empty() {
+                            s += "\n";
+                        }
+                        (s + line, indent_next_line(kind, line, context.config))
+                    },
+                )
+                .0;
+            result.push_str(&new_body);
+        } else {
+            // Fallback: preserve original with proper indentation
+            for line in body_str.lines() {
+                if line.trim().is_empty() {
+                    result.push('\n');
+                } else {
+                    result.push_str(&body_shape.indent.to_string_with_newline(context.config));
+                    result.push_str(line);
+                }
+            }
+        }
+    }
+
+    result.push_str(&shape.indent.to_string_with_newline(context.config));
+    result.push_str("});");
+
+    Ok(result)
+}
+
 fn rewrite_macro_with_items(
     context: &RewriteContext<'_>,
     items: &[MacroArg],
@@ -2145,4 +2499,41 @@ fn rewrite_macro_with_items(
     result.push_str(closer);
     result.push_str(trailing_semicolon);
     Ok(result)
+}
+
+/// Format a cfg predicate like `cfg(not(target_arch = "wasm32"))` by wrapping it
+/// as a dummy attribute on a dummy item, formatting that, then extracting the result.
+fn format_cfg_as_attr(context: &RewriteContext<'_>, cfg_str: &str) -> Option<String> {
+    // Only format if it starts with `cfg` or `cfg_attr`
+    let trimmed = cfg_str.trim();
+    if !trimmed.starts_with("cfg(") && !trimmed.starts_with("cfg_attr(") {
+        return None;
+    }
+
+    // Reject if it contains comments (formatting might relocate them unexpectedly)
+    if contains_comment(cfg_str) {
+        return None;
+    }
+
+    // Wrap as `#[cfg_str]\nstruct X;` to make it a valid item
+    let dummy_code = format!("#[{}]\nstruct X;", cfg_str);
+    let mut config = context.config.clone();
+    config.set().show_parse_errors(false);
+
+    let formatted = crate::format_snippet(&dummy_code, &config, false)?;
+    let snippet = formatted.snippet.trim();
+
+    // Extract the content between `#[` and `]` from the first line.
+    // If the attribute spans multiple lines, bail out (not supported here).
+    let first_line = snippet.lines().next()?;
+    let result = first_line
+        .strip_prefix("#[")
+        .and_then(|s| s.strip_suffix(']'))?;
+
+    // Guard: if result contains newlines or the formatted output has multiple attributes, bail out
+    if result.contains('\n') || snippet.lines().filter(|l| l.starts_with("#[")).count() > 1 {
+        return None;
+    }
+
+    Some(result.to_string())
 }

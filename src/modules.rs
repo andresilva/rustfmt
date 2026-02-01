@@ -186,6 +186,52 @@ impl<'ast, 'psess, 'c> ModResolver<'ast, 'psess> {
         Ok(())
     }
 
+    /// Visit `stability_mod!` macro and look for module declarations.
+    fn visit_stability_mod(
+        &mut self,
+        item: Cow<'ast, ast::Item>,
+    ) -> Result<(), ModuleResolutionError> {
+        let mut visitor = visitor::StabilityModVisitor::new(self.psess);
+        visitor.visit_item(&item);
+        for module_item in visitor.mods() {
+            if let ast::ItemKind::Mod(_, _, ref sub_mod_kind) = module_item.item.kind {
+                self.visit_sub_mod(
+                    &module_item.item,
+                    Module::new(
+                        module_item.item.span,
+                        Some(Cow::Owned(sub_mod_kind.clone())),
+                        Cow::Owned(ThinVec::new()),
+                        Cow::Owned(ast::AttrVec::new()),
+                    ),
+                )?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Visit `stability_scope!` macro and look for module declarations.
+    fn visit_stability_scope(
+        &mut self,
+        item: Cow<'ast, ast::Item>,
+    ) -> Result<(), ModuleResolutionError> {
+        let mut visitor = visitor::StabilityScopeVisitor::new(self.psess);
+        visitor.visit_item(&item);
+        for module_item in visitor.mods() {
+            if let ast::ItemKind::Mod(_, _, ref sub_mod_kind) = module_item.item.kind {
+                self.visit_sub_mod(
+                    &module_item.item,
+                    Module::new(
+                        module_item.item.span,
+                        Some(Cow::Owned(sub_mod_kind.clone())),
+                        Cow::Owned(ThinVec::new()),
+                        Cow::Owned(ast::AttrVec::new()),
+                    ),
+                )?;
+            }
+        }
+        Ok(())
+    }
+
     /// Visit modules defined inside macro calls.
     fn visit_mod_outside_ast(
         &mut self,
@@ -199,6 +245,16 @@ impl<'ast, 'psess, 'c> ModResolver<'ast, 'psess> {
 
             if is_cfg_match(&item) {
                 self.visit_cfg_match(Cow::Owned(item.into_inner()))?;
+                continue;
+            }
+
+            if is_stability_mod(&item) {
+                self.visit_stability_mod(Cow::Owned(item.into_inner()))?;
+                continue;
+            }
+
+            if is_stability_scope(&item) {
+                self.visit_stability_scope(Cow::Owned(item.into_inner()))?;
                 continue;
             }
 
@@ -230,6 +286,14 @@ impl<'ast, 'psess, 'c> ModResolver<'ast, 'psess> {
 
             if is_cfg_match(item) {
                 self.visit_cfg_match(Cow::Borrowed(item))?;
+            }
+
+            if is_stability_mod(item) {
+                self.visit_stability_mod(Cow::Borrowed(item))?;
+            }
+
+            if is_stability_scope(item) {
+                self.visit_stability_scope(Cow::Borrowed(item))?;
             }
 
             if let ast::ItemKind::Mod(_, _, ref sub_mod_kind) = item.kind {
@@ -609,6 +673,34 @@ fn is_cfg_match(item: &ast::Item) -> bool {
         ast::ItemKind::MacCall(ref mac) => {
             if let Some(last_segment) = mac.path.segments.last() {
                 if last_segment.ident.name == Symbol::intern("cfg_match") {
+                    return true;
+                }
+            }
+            false
+        }
+        _ => false,
+    }
+}
+
+fn is_stability_mod(item: &ast::Item) -> bool {
+    match item.kind {
+        ast::ItemKind::MacCall(ref mac) => {
+            if let Some(last_segment) = mac.path.segments.last() {
+                if last_segment.ident.name == Symbol::intern("stability_mod") {
+                    return true;
+                }
+            }
+            false
+        }
+        _ => false,
+    }
+}
+
+fn is_stability_scope(item: &ast::Item) -> bool {
+    match item.kind {
+        ast::ItemKind::MacCall(ref mac) => {
+            if let Some(last_segment) = mac.path.segments.last() {
+                if last_segment.ident.name == Symbol::intern("stability_scope") {
                     return true;
                 }
             }

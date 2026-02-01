@@ -1386,3 +1386,87 @@ cfg_if! {
         const C: i32 = 2;
     }
 }
+
+// stability_scope! macro formatting
+stability_scope!(BETA {
+    use std::future::Future;
+    use std::time::Duration;
+
+    /// A trait for something.
+    pub trait Consumer: Clone + Send + 'static {
+        type Key;
+        type Value;
+
+        fn deliver(
+            &mut self,
+            key: Self::Key,
+            value: Self::Value,
+        ) -> impl Future<Output = bool> + Send;
+    }
+});
+
+stability_scope!(ALPHA, cfg(feature = "std") {
+    use std::io;
+});
+
+commonware_macros::stability_scope!(BETA {
+    type Foo = i32;
+    type Bar = i64;
+});
+
+// stability_mod! macro formatting
+stability_mod!(ALPHA, pub mod alpha {});
+stability_mod!(BETA, pub mod beta {});
+commonware_macros::stability_mod!(ALPHA, pub mod prefixed {});
+
+// stability_scope! empty body
+stability_scope!(BETA {
+});
+
+// stability_scope! with comment in seam should be preserved (bail out)
+stability_scope!(BETA /*comment*/ {
+    type Foo = i32;
+});
+
+// stability_mod! with comment in seam should be preserved (bail out)
+stability_mod!(ALPHA /* comment */, pub mod commented {});
+
+// stability_mod! with nested delimiters in level (comma inside parens)
+stability_mod!(level_with_args(1, 2, 3), pub mod nested_level {});
+
+// stability_scope! with cfg-prefix and multiple items
+stability_scope!(ALPHA, cfg(any(unix, windows)) {
+    use std::io;
+    pub const X: i32 = 42;
+    type Y = String;
+});
+
+// stability_scope! with non-mod items interleaved
+stability_scope!(BETA {
+    fn helper() {}
+    mod inner_a {}
+    struct Data {
+        field: i32,
+    }
+    mod inner_b {}
+});
+
+// stability_scope! with nested braces in body
+stability_scope!(BETA {
+    mod outer {
+        mod nested {}
+    }
+    fn with_block() {
+        let x = { 1 + 2 };
+    }
+});
+
+// stability_scope! with cfg attribute needing whitespace normalization
+stability_scope!(ALPHA, cfg(not(target_arch = "wasm32")) {
+    use std::io;
+});
+
+// stability_scope! with extra whitespace around comma
+commonware_macros::stability_scope!(BETA, cfg(feature = "std") {
+    use std::io;
+});
