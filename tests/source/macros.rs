@@ -1,85 +1,111 @@
 // rustfmt-normalize_comments: true
 // rustfmt-format_macro_matchers: true
-itemmacro!(this, is.now() .formatted(yay));
+itemmacro!(this, is.now().formatted(yay));
 
-itemmacro!(really, long.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbb() .is.formatted());
+itemmacro!(
+    really,
+    long.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbb()
+        .is
+        .formatted()
+);
 
-itemmacro!{this, is.brace().formatted()}
+itemmacro! {this, is.brace().formatted()}
 
 fn main() {
-    foo! ( );
+    foo!();
 
     foo!(,);
 
-    bar!( a , b , c );
+    bar!(a, b, c);
 
-    bar!( a , b , c , );
+    bar!(a, b, c,);
 
-    baz!(1+2+3, quux. kaas());
+    baz!(1 + 2 + 3, quux.kaas());
 
-    quux!(AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA, BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB);
+    quux!(
+        AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA,
+        BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+    );
 
-    kaas!(/* comments */ a /* post macro */, b /* another */);
+    kaas!(
+        /* comments */ a, /* post macro */
+        b  /* another */
+    );
 
-    trailingcomma!( a , b , c , );
+    trailingcomma!(a, b, c,);
     // Preserve trailing comma only when necessary.
-    ok!(file.seek(
-        SeekFrom::Start(
-            table.map(|table| fixture.offset(table)).unwrap_or(0),
-        )
-    ));
+    ok!(file.seek(SeekFrom::Start(
+        table.map(|table| fixture.offset(table)).unwrap_or(0),
+    )));
 
     noexpr!( i am not an expression, OK? );
 
-    vec! [ a , b , c];
+    vec![a, b, c];
 
-    vec! [AAAAAA, AAAAAA, AAAAAA, AAAAAA, AAAAAA, AAAAAA, AAAAAA, AAAAAA, AAAAAA,
-          BBBBB, 5, 100-30, 1.33, b, b, b];
+    vec![
+        AAAAAA,
+        AAAAAA,
+        AAAAAA,
+        AAAAAA,
+        AAAAAA,
+        AAAAAA,
+        AAAAAA,
+        AAAAAA,
+        AAAAAA,
+        BBBBB,
+        5,
+        100 - 30,
+        1.33,
+        b,
+        b,
+        b,
+    ];
 
-    vec! [a /* comment */];
+    vec![a /* comment */];
 
     // Trailing spaces after a comma
-    vec![
-    a,   
-    ];
-    
+    vec![a];
+
     vec![a; b];
-    vec!(a; b);
-    vec!{a; b};
+    vec![a; b];
+    vec![a; b];
 
     vec![a, b; c];
     vec![a; b, c];
 
-    vec![a; (|x| { let y = x + 1; let z = y + 1; z })(2)];
-    vec![a; xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx];
-    vec![a; unsafe {
-        x + 1
-    }];
-
-    unknown_bracket_macro__comma_should_not_be_stripped![
-    a,
+    vec![
+        a;
+        (|x| {
+            let y = x + 1;
+            let z = y + 1;
+            z
+        })(2)
     ];
-    
-    foo(makro!(1,   3));
+    vec![
+        a;
+        xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+    ];
+    vec![a; unsafe { x + 1 }];
 
-    hamkaas!{ () };
+    unknown_bracket_macro__comma_should_not_be_stripped![a,];
+
+    foo(makro!(1, 3));
+
+    hamkaas! { () };
 
     macrowithbraces! {dont,    format, me}
 
     x!(fn);
 
-    some_macro!(
-        
-    );
+    some_macro!();
 
-    some_macro![
-    ];
+    some_macro![];
 
-    some_macro!{
+    some_macro! {
         // comment
     };
 
-    some_macro!{
+    some_macro! {
         // comment
     };
 
@@ -98,12 +124,11 @@ fn main() {
     chain!(input, a:take!(max_size), || []);
 
     // #2727
-    foo!("bar")
-;
+    foo!("bar");
 }
 
 impl X {
-    empty_invoc!{}
+    empty_invoc! {}
     empty_invoc! {}
 }
 
@@ -112,17 +137,21 @@ fn issue_1279() {
 }
 
 fn issue_1555() {
-    let hello = &format!("HTTP/1.1 200 OK\r\nServer: {}\r\n\r\n{}",
-                         "65454654654654654654654655464",
-                         "4");
+    let hello = &format!(
+        "HTTP/1.1 200 OK\r\nServer: {}\r\n\r\n{}",
+        "65454654654654654654654655464", "4"
+    );
 }
 
 fn issue1178() {
     macro_rules! foo {
-        (#[$attr:meta] $name:ident) => {}
+        (#[$attr:meta] $name:ident) => {};
     }
 
-    foo!(#[doc = "bar"] baz);
+    foo!(
+        #[doc = "bar"]
+        baz
+    );
 }
 
 fn issue1739() {
@@ -134,57 +163,67 @@ fn issue1739() {
                    d: types::Text,
                    e: types::Text));
 
-    w.slice_mut(s![.., init_size[1] - extreeeeeeeeeeeeeeeeeeeeeeeem..init_size[1], ..])
-        .par_map_inplace(|el| *el = 0.);
+    w.slice_mut(s![
+        ..,
+        init_size[1] - extreeeeeeeeeeeeeeeeeeeeeeeem..init_size[1],
+        ..
+    ])
+    .par_map_inplace(|el| *el = 0.);
 }
 
 fn issue_1885() {
-    let threads = people.into_iter().map(|name| {
-        chan_select! {
-            rx.recv() => {}
-        }
-    }).collect::<Vec<_>>();
+    let threads = people
+        .into_iter()
+        .map(|name| {
+            chan_select! {
+                rx.recv() => {}
+            }
+        })
+        .collect::<Vec<_>>();
 }
 
 fn select_macros() {
     // Multiple branches without keywords
     select! {
-        val = future1   =>     handle(val),
-        _    =    future2 => other(),
+        val = future1 => handle(val),
+        _ = future2 => other(),
     }
 
     // Basic select! with keyword arms
     select! {
-        a =    foo() => bar(),
-        complete   =>    baz(),
-        default=>quux(),
+        a = foo() => bar(),
+        complete => baz(),
+        default => quux(),
     }
 
     // Keywords as normal identifier patterns (not keyword arms)
     select! {
-        complete   =   foo()   =>   bar(),
+        complete = foo() => bar(),
         default = other() => baz(),
     }
 
     // select_biased! works the same as select!
     select_biased! {
-        a   =   foo()   =>   bar(),
-        default   =>   fallback(),
+        a = foo() => bar(),
+        default => fallback(),
     }
 
     // Empty block body collapses to {}
     select! {
-        val = future => {   },
+        val = future => {},
     }
 
     // Multi-statement block stays expanded
     select! {
-        val = future => { let x = 1; process(x) },
+        val = future => {
+            let x = 1;
+            process(x)
+        },
     }
 
     // Literal bodies stay on same line
     select! {
-        _   =   timeout   =>   false,
+        _ = timeout => false,
         _ = success => true,
     }
 
@@ -196,96 +235,104 @@ fn select_macros() {
     // select_loop! with all keyword positions and interleaved branches
     select_loop! {
         ctx,
-        on_start   =>   setup(),
-        val   =   stream   =>   process(val),
-        on_stopped=>cleanup(),
+        on_start => setup(),
+        val = stream => process(val),
+        on_stopped => cleanup(),
         on_end => finalize(),
     }
 
     // select_loop! keywords as normal patterns (on_start used as pattern name)
     select_loop! {
         ctx,
-        on_stopped   =>   stopped(),
-        on_start   =   other_stream()   =>   handle(on_start),
+        on_stopped => stopped(),
+        on_start = other_stream() => handle(on_start),
     }
 
     // select_loop! with subset of keywords (only on_stopped required)
     select_loop! {
         context,
-        on_stopped=>cleanup(),
-        msg   =   receiver   =>   handle(msg),
+        on_stopped => cleanup(),
+        msg = receiver => handle(msg),
     }
 
     // Nested select inside select
     select! {
-        outer   =   outer_future   =>   select! {
-            inner   =   inner_future   =>   process(inner),
-            default   =>   fallback(),
+        outer = outer_future => select! {
+            inner = inner_future => process(inner),
+            default => fallback(),
         },
     }
 
     // Tuple patterns
     select! {
-        (a,   b)   =   tuple_future   =>   handle(a, b),
+        (a, b) = tuple_future => handle(a, b),
     }
 
     // Struct patterns
     select! {
-        MyStruct { field:   value }   =   struct_future   =>   handle(value),
+        MyStruct { field: value } = struct_future => handle(value),
     }
 
     // Long pattern that needs wrapping
     select! {
-        VeryLongPatternName { field_one: value_one, field_two: value_two } = some_future => handle(value_one, value_two),
+        VeryLongPatternName {
+            field_one: value_one,
+            field_two: value_two,
+        } = some_future => handle(value_one, value_two),
     }
 
     // Qualified paths (futures::select!)
     futures::select! {
-        a   =   foo()   =>   bar(),
-        default   =>   fallback(),
+        a = foo() => bar(),
+        default => fallback(),
     }
 
     // Non-block multiline body gets wrapped in { } (like match arms with match_arm_blocks=true)
     select! {
-        msg   =   rx.next()   =>   if let Some(v) = msg {
-            results.push(v);
+        msg = rx.next() => {
+            if let Some(v) = msg {
+                results.push(v);
+            }
         },
     }
 
     // Let-else patterns with diverging expressions (else break/continue/return)
     select_loop! {
         ctx,
-        on_stopped   =>   cleanup(),
-        Some(msg)   =   rx.next()   else   break   =>   handle(msg),
-        Ok(val)   =   result.next()   else   continue   =>   process(val),
+        on_stopped => cleanup(),
+        Some(msg) = rx.next() else break => handle(msg),
+        Ok(val) = result.next() else continue => process(val),
     }
 
     // Let-else with multiline block
     select_loop! {
         ctx,
-        on_stopped   =>   cleanup(),
-        Some(msg)   =   rx.next()   else   {   log_error();   return   }   =>   handle(msg),
+        on_stopped => cleanup(),
+        Some(msg) = rx.next() else {
+            log_error();
+            return;
+        } => handle(msg),
     }
 
     // Comments between arms are preserved
     select! {
         // Handle first case
-        val   =   future1   =>   handle(val),
+        val = future1 => handle(val),
         // Handle second case
-        _   =   future2   =>   other(),
+        _ = future2 => other(),
         // Default fallback
-        default   =>   fallback(),
+        default => fallback(),
     }
 
     // select_loop! with comments between items
     select_loop! {
         ctx,
         // Initialize state
-        on_start   =>   setup(),
+        on_start => setup(),
         // Handle incoming messages
-        msg   =   receiver   =>   process(msg),
+        msg = receiver => process(msg),
         // Clean up when stopped
-        on_stopped   =>   cleanup(),
+        on_stopped => cleanup(),
     }
 
     // Invalid syntax: pattern => body without = falls back to default formatting
@@ -313,16 +360,16 @@ fn issue_1917() {
 fn issue_1921() {
     // Macro with tabs.
     lazy_static! {
-	static ref ONE: u32 = 1;
-	static ref TWO: u32 = 2;
-	static ref THREE: u32 = 3;
-	static ref FOUR: u32 = {
-		let mut acc = 1;
-		acc += 1;
-		acc += 2;
-		acc
-	}
-}
+        static ref ONE: u32 = 1;
+        static ref TWO: u32 = 2;
+        static ref THREE: u32 = 3;
+        static ref FOUR: u32 = {
+            let mut acc = 1;
+            acc += 1;
+            acc += 2;
+            acc
+        };
+    }
 }
 
 // #1577
@@ -334,15 +381,14 @@ fn issue1577() {
 
 // #3174
 fn issue_3174() {
-    let data =
-        if let Some(debug) = error.debug_info() {
-            json!({
-                "errorKind": format!("{:?}", error.err_kind()),
-                "debugMessage": debug.message,
-            })
-        } else {
-            json!({"errorKind": format!("{:?}", error.err_kind())})
-        };
+    let data = if let Some(debug) = error.debug_info() {
+        json!({
+            "errorKind": format!("{:?}", error.err_kind()),
+            "debugMessage": debug.message,
+        })
+    } else {
+        json!({"errorKind": format!("{:?}", error.err_kind())})
+    };
 }
 
 gfx_pipeline!(pipe {
@@ -358,152 +404,686 @@ fn __bindgen_test_layout_HandleWithDtor_open0_int_close0_instantiation() {
         8usize,
         concat!(
             "Size of template specialization: ",
-            stringify ! ( HandleWithDtor < :: std :: os :: raw :: c_int > )
+            stringify!(HandleWithDtor<::std::os::raw::c_int>)
         )
     );
-    assert_eq ! ( :: std :: mem :: align_of :: < HandleWithDtor < :: std :: os :: raw :: c_int > > ( ) , 8usize , concat ! ( "Alignment of template specialization: " , stringify ! ( HandleWithDtor < :: std :: os :: raw :: c_int > ) ) );
+    assert_eq!(
+        ::std::mem::align_of::<HandleWithDtor<::std::os::raw::c_int>>(),
+        8usize,
+        concat!(
+            "Alignment of template specialization: ",
+            stringify!(HandleWithDtor<::std::os::raw::c_int>)
+        )
+    );
 }
 
 // #878
 macro_rules! try_opt {
-    ($expr:expr) => (match $expr {  
-        Some(val) => val,
-          
-        None => { return None; }
-    })
+    ($expr:expr) => {
+        match $expr {
+            Some(val) => val,
+
+            None => {
+                return None;
+            }
+        }
+    };
 }
 
 // #2214
 // macro call whose argument is an array with trailing comma.
 fn issue2214() {
-make_test!(str_searcher_ascii_haystack, "bb", "abbcbbd", [
-    Reject(0, 1),
-    Match (1, 3),
-    Reject(3, 4),
-    Match (4, 6),
-    Reject(6, 7),
-]);
+    make_test!(
+        str_searcher_ascii_haystack,
+        "bb",
+        "abbcbbd",
+        [
+            Reject(0, 1),
+            Match(1, 3),
+            Reject(3, 4),
+            Match(4, 6),
+            Reject(6, 7),
+        ]
+    );
 }
 
 fn special_case_macros() {
     let p = eprint!();
     let q = eprint!("{}", 1);
-    let r = eprint!("{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
-    let s = eprint!("{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26);
+    let r = eprint!(
+        "{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}",
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
+    );
+    let s = eprint!(
+        "{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}",
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26
+    );
 
     let q = eprintln!("{}", 1);
-    let r = eprintln!("{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
-    let s = eprintln!("{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26);
+    let r = eprintln!(
+        "{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}",
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
+    );
+    let s = eprintln!(
+        "{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}",
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26
+    );
 
     let q = format!("{}", 1);
-    let r = format!("{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
-    let s = format!("{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26);
+    let r = format!(
+        "{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}",
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
+    );
+    let s = format!(
+        "{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}",
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26
+    );
 
     let q = format_args!("{}", 1);
-    let r = format_args!("{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
-    let s = format_args!("{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26);
+    let r = format_args!(
+        "{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}",
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
+    );
+    let s = format_args!(
+        "{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}",
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26
+    );
 
     let q = print!("{}", 1);
-    let r = print!("{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
-    let s = print!("{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26);
+    let r = print!(
+        "{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}",
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
+    );
+    let s = print!(
+        "{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}",
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26
+    );
 
     let q = println!("{}", 1);
-    let r = println!("{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
-    let s = println!("{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26);
+    let r = println!(
+        "{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}",
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
+    );
+    let s = println!(
+        "{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}",
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26
+    );
 
     let q = unreachable!("{}", 1);
-    let r = unreachable!("{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
-    let s = unreachable!("{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26);
+    let r = unreachable!(
+        "{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}",
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
+    );
+    let s = unreachable!(
+        "{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}",
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26
+    );
 
     debug!("{}", 1);
-    debug!("{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
-    debug!("{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26);
+    debug!(
+        "{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}",
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
+    );
+    debug!(
+        "{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}",
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26
+    );
 
     error!("{}", 1);
-    error!("{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
-    error!("{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26);
+    error!(
+        "{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}",
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
+    );
+    error!(
+        "{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}",
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26
+    );
 
     info!("{}", 1);
-    info!("{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
-    info!("{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26);
+    info!(
+        "{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}",
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
+    );
+    info!(
+        "{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}",
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26
+    );
 
     panic!("{}", 1);
-    panic!("{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
-    panic!("{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26);
+    panic!(
+        "{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}",
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
+    );
+    panic!(
+        "{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}",
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26
+    );
 
     warn!("{}", 1);
-    warn!("{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
-    warn!("{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26);
+    warn!(
+        "{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}",
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
+    );
+    warn!(
+        "{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}",
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26
+    );
 
     assert!();
     assert!(result == 42);
     assert!(result == 42, "Ahoy there, {}!", target);
-    assert!(result == 42, "Arr! While plunderin' the hold, we got '{}' when given '{}' (we expected '{}')", result, input, expected);
-    assert!(result == 42, "{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26);
+    assert!(
+        result == 42,
+        "Arr! While plunderin' the hold, we got '{}' when given '{}' (we expected '{}')",
+        result,
+        input,
+        expected
+    );
+    assert!(
+        result == 42,
+        "{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}",
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26
+    );
 
     assert_eq!();
     assert_eq!(left);
     assert_eq!(left, right);
     assert_eq!(left, right, "Ahoy there, {}!", target);
-    assert_eq!(left, right, "Arr! While plunderin' the hold, we got '{}' when given '{}' (we expected '{}')", result, input, expected);
-    assert_eq!(first_realllllllllllly_long_variable_that_doesnt_fit_one_one_line, second_reallllllllllly_long_variable_that_doesnt_fit_one_one_line, "Arr! While plunderin' the hold, we got '{}' when given '{}' (we expected '{}')", result, input, expected);
-    assert_eq!(left + 42, right, "Arr! While plunderin' the hold, we got '{}' when given '{}' (we expected '{}')", result, input, expected);
-    assert_eq!(left, right, "{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26);
+    assert_eq!(
+        left, right,
+        "Arr! While plunderin' the hold, we got '{}' when given '{}' (we expected '{}')",
+        result, input, expected
+    );
+    assert_eq!(
+        first_realllllllllllly_long_variable_that_doesnt_fit_one_one_line,
+        second_reallllllllllly_long_variable_that_doesnt_fit_one_one_line,
+        "Arr! While plunderin' the hold, we got '{}' when given '{}' (we expected '{}')",
+        result,
+        input,
+        expected
+    );
+    assert_eq!(
+        left + 42,
+        right,
+        "Arr! While plunderin' the hold, we got '{}' when given '{}' (we expected '{}')",
+        result,
+        input,
+        expected
+    );
+    assert_eq!(
+        left,
+        right,
+        "{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}",
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26
+    );
 
     write!(&mut s, "Ahoy there, {}!", target);
-    write!(&mut s, "Arr! While plunderin' the hold, we got '{}' when given '{}' (we expected '{}')", result, input, expected);
-    write!(&mut s, "{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26);
+    write!(
+        &mut s,
+        "Arr! While plunderin' the hold, we got '{}' when given '{}' (we expected '{}')",
+        result, input, expected
+    );
+    write!(
+        &mut s,
+        "{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}",
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26
+    );
 
     writeln!(&mut s, "Ahoy there, {}!", target);
-    writeln!(&mut s, "Arr! While plunderin' the hold, we got '{}' when given '{}' (we expected '{}')", result, input, expected);
-    writeln!(&mut s, "{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26);
+    writeln!(
+        &mut s,
+        "Arr! While plunderin' the hold, we got '{}' when given '{}' (we expected '{}')",
+        result, input, expected
+    );
+    writeln!(
+        &mut s,
+        "{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}",
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26
+    );
 }
 
 // #1209
 impl Foo {
     /// foo
-    pub fn foo(&self) -> Bar<foo!(   )> {}
+    pub fn foo(&self) -> Bar<foo!()> {}
 }
 
 // #819
-fn macro_in_pattern_position () {
+fn macro_in_pattern_position() {
     let x = match y {
-        foo!(  ) => (),
-        bar!(            a, b,
-                         c) => (),
-        bar!(a
-             , b
-             , c
-             ,) => (),
-        baz!( 1 + 2 + 3, quux.kaas(  )
+        foo!() => (),
+        bar!(a, b, c) => (),
+        bar!(a, b, c,) => (),
+        baz!(1 + 2 + 3, quux.kaas()) => (),
+        quux!(
+            AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA,
+            BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
         ) => (),
-        quux!(AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA, BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB) => (),
     };
 }
 
-macro foo() {
-
-
-}
+macro foo() {}
 
 pub macro bar($x:ident+$y:expr; ) {
     fn foo($x: Foo) {
-    long_function(a_long_argument_to_a_long_function_is_what_this_is(AAAAAAAAAAAAAAAAAAAAAAAAAAAA),
-                  $x.bar($y));
+        long_function(
+            a_long_argument_to_a_long_function_is_what_this_is(AAAAAAAAAAAAAAAAAAAAAAAAAAAA),
+            $x.bar($y),
+        );
     }
 }
 
 macro foo() {
-  // a comment
-  fn foo() {
-  // another comment
-  bar();
-  }
+    // a comment
+    fn foo() {
+        // another comment
+        bar();
+    }
 }
 
 // #2574
 macro_rules! test {
-    () => {{}}
+    () => {{}};
 }
 
 macro lex_err($kind: ident $(, $body: expr)*) {
@@ -511,8 +1091,8 @@ macro lex_err($kind: ident $(, $body: expr)*) {
 }
 
 // Preserve trailing comma on item-level macro with `()` or `[]`.
-methods![ get, post, delete, ];
-methods!( get, post, delete, );
+methods![get, post, delete,];
+methods!(get, post, delete,);
 
 // #2588
 macro_rules! m {
@@ -523,7 +1103,7 @@ macro_rules! m {
     };
 }
 fn foo() {
-    f!{r#"
+    f! {r#"
             test
        "#};
 }
@@ -543,8 +1123,14 @@ fn foo() {
 // #2616
 // Preserve trailing comma when using mixed layout for macro call.
 fn foo() {
-    foo!(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1);
-    foo!(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,);
+    foo!(
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
+    );
+    foo!(
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    );
 }
 
 // #2830
@@ -582,53 +1168,49 @@ convert_args!(vec!(1, 2, 3));
 
 // #3031
 thread_local!(
-/// TLV Holds a set of JSTraceables that need to be rooted
-    static ROOTED_TRACEABLES: RefCell<RootedTraceableSet> =
-        RefCell::new(RootedTraceableSet::new()) ;
-) ;
+    /// TLV Holds a set of JSTraceables that need to be rooted
+    static ROOTED_TRACEABLES: RefCell<RootedTraceableSet> = RefCell::new(RootedTraceableSet::new());
+);
 
 thread_local![
     /// TLV Holds a set of JSTraceables that need to be rooted
-    static ROOTED_TRACEABLES: RefCell<RootedTraceableSet> =
-        RefCell::new(RootedTraceableSet::new()) ;
+    static ROOTED_TRACEABLES: RefCell<RootedTraceableSet> = RefCell::new(RootedTraceableSet::new());
 
     /// TLV Holds a set of JSTraceables that need to be rooted
     static ROOTED_TRACEABLES: RefCell<RootedTraceableSet> =
-        RefCell::new(RootedTraceableSet::new(0)) ;
+        RefCell::new(RootedTraceableSet::new(0));
 
     /// TLV Holds a set of JSTraceables that need to be rooted
     static ROOTED_TRACEABLES: RefCell<RootedTraceableSet> =
-        RefCell::new(RootedTraceableSet::new(), xxx, yyy) ;
+        RefCell::new(RootedTraceableSet::new(), xxx, yyy);
 
     /// TLV Holds a set of JSTraceables that need to be rooted
-static ROOTED_TRACEABLES: RefCell<RootedTraceableSet> =
-        RefCell::new(RootedTraceableSet::new(1234)) ;
-
-] ;
+    static ROOTED_TRACEABLES: RefCell<RootedTraceableSet> =
+        RefCell::new(RootedTraceableSet::new(1234));
+];
 
 fn issue3004() {
-    foo!(|_| { (  ) });
-    stringify!(( foo+ ));
+    foo!(|_| { () });
+    stringify!((foo+));
 }
 
 // #3331
 pub fn fold_abi<V: Fold + ?Sized>(_visitor: &mut V, _i: Abi) -> Abi {
     Abi {
-        extern_token: Token ! [ extern ](tokens_helper(_visitor, &_i.extern_token.span)),
+        extern_token: Token![extern](tokens_helper(_visitor, &_i.extern_token.span)),
         name: (_i.name).map(|it| _visitor.fold_lit_str(it)),
     }
 }
 
 // #3463
-x ! {()}
+x! {()}
 
 // #3746
 f!(match a {
-    4 =>
-        &[
-            (3, false), // Missing
-            (4, true)   // I-frame
-        ]  [..],
+    4 => &[
+        (3, false), // Missing
+        (4, true)   // I-frame
+    ][..],
 });
 
 // #3583
@@ -637,21 +1219,33 @@ foo!(|x = y|);
 // cfg_if! macro formatting tests
 cfg_if! {
     if #[cfg(unix)] {
-fn foo() { println!("unix"); }
+        fn foo() {
+            println!("unix");
+        }
     } else if #[cfg(target_pointer_width = "32")] {
-fn foo() { println!("32-bit"); }
+        fn foo() {
+            println!("32-bit");
+        }
     } else {
-fn foo() { println!("other"); }
+        fn foo() {
+            println!("other");
+        }
     }
 }
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "std")] {
         use std::collections::HashMap;
-pub struct Foo { x: i32,y:i32 }
+        pub struct Foo {
+            x: i32,
+            y: i32,
+        }
     } else {
         use alloc::collections::BTreeMap;
-pub struct Foo { x: i32,y:i32 }
+        pub struct Foo {
+            x: i32,
+            y: i32,
+        }
     }
 }
 
@@ -687,32 +1281,32 @@ cfg_if! {
 
 // Attributes inside branches should be formatted
 cfg_if! {
-    if #[cfg(feature="std")] {
+    if #[cfg(feature = "std")] {
         fn foo() {}
-    } else if #[cfg(all(target_os="linux",target_arch="x86_64"))] {
+    } else if #[cfg(all(target_os = "linux", target_arch = "x86_64"))] {
         fn foo() {}
     }
 }
 
 // Complex real-world case with impl blocks
 cfg_if::cfg_if! {
-    if #[cfg(feature="aws")] {
-#[derive(Debug, Clone, Copy)]
-pub enum Architecture {
-Arm64,
-X86_64,
-}
+    if #[cfg(feature = "aws")] {
+        #[derive(Debug, Clone, Copy)]
+        pub enum Architecture {
+            Arm64,
+            X86_64,
+        }
 
-impl Architecture {
-pub const fn as_str(&self) -> &'static str {
-match self {
-Self::Arm64 => "arm64",
-Self::X86_64 => "amd64",
-}
-}
-}
+        impl Architecture {
+            pub const fn as_str(&self) -> &'static str {
+                match self {
+                    Self::Arm64 => "arm64",
+                    Self::X86_64 => "amd64",
+                }
+            }
+        }
     } else {
-pub const DEFAULT: &str = "none";
+        pub const DEFAULT: &str = "none";
     }
 }
 
@@ -731,7 +1325,12 @@ cfg_if! {
 // (regression test: one overlong variant shouldn't prevent formatting of others)
 pub enum Error {
     LongVariant(very_long_module::path::that::exceeds::the::maximum::line::width::LongTypeName),
-    StructVariant {field1: String,field2: i32,field3: SomeLongerTypeName,field4: AnotherType},
+    StructVariant {
+        field1: String,
+        field2: i32,
+        field3: SomeLongerTypeName,
+        field4: AnotherType,
+    },
 }
 
 // cfg_if with comment between if and #[cfg] should be preserved (bail out)
@@ -761,7 +1360,7 @@ cfg_if! {
 fn test_cfg_if_in_function() {
     cfg_if::cfg_if! {
         if #[cfg(unix)] {
-            let x=1;
+            let x = 1;
             foo(x);
         } else {
             bar();
@@ -786,3 +1385,87 @@ cfg_if! {
         const C: i32 = 2;
     }
 }
+
+// stability_scope! macro formatting
+stability_scope!(BETA {
+    use std::future::Future;
+    use std::time::Duration;
+
+    /// A trait for something.
+    pub trait Consumer: Clone + Send + 'static {
+        type Key;
+        type Value;
+
+        fn deliver(
+            &mut self,
+            key: Self::Key,
+            value: Self::Value,
+        ) -> impl Future<Output = bool> + Send;
+    }
+});
+
+stability_scope!(ALPHA, cfg(feature = "std") {
+    use std::io;
+});
+
+commonware_macros::stability_scope!(BETA {
+    type Foo = i32;
+    type Bar = i64;
+});
+
+// stability_mod! macro formatting
+stability_mod!(ALPHA, pub mod alpha {});
+stability_mod!(BETA, pub mod beta {});
+commonware_macros::stability_mod!(ALPHA, pub mod prefixed {});
+
+// stability_scope! empty body
+stability_scope!(BETA {
+});
+
+// stability_scope! with comment in seam should be preserved (bail out)
+stability_scope!(BETA /*comment*/ {
+    type Foo = i32;
+});
+
+// stability_mod! with comment in seam should be preserved (bail out)
+stability_mod!(ALPHA /*comment*/, pub mod commented {});
+
+// stability_mod! with nested delimiters in level (comma inside parens)
+stability_mod!(level_with_args(1, 2, 3), pub mod nested_level {});
+
+// stability_scope! with cfg-prefix and multiple items
+stability_scope!(ALPHA, cfg(any(unix, windows)) {
+    use std::io;
+    pub const X: i32 = 42;
+    type Y = String;
+});
+
+// stability_scope! with non-mod items interleaved
+stability_scope!(BETA {
+    fn helper() {}
+    mod inner_a {}
+    struct Data {
+        field: i32,
+    }
+    mod inner_b {}
+});
+
+// stability_scope! with nested braces in body
+stability_scope!(BETA {
+    mod outer {
+        mod nested {}
+    }
+    fn with_block() {
+        let x = { 1 + 2 };
+    }
+});
+
+// stability_scope! with cfg attribute needing whitespace normalization
+stability_scope!(ALPHA, cfg(not(target_arch ="wasm32")) {
+    use std::io;
+});
+
+// stability_scope! with extra whitespace around comma
+commonware_macros::stability_scope!(BETA  ,   cfg(feature = "std") {
+    use std::io;
+});
